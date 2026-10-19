@@ -1,0 +1,110 @@
+{
+    "system": {
+        "device_id": 1,
+        "role": "LOADER",
+        "version": "1.03"
+    },
+    "app": {
+        "stack_size": 8192,
+        "boot_grace_ms": 3000,
+        "life_refill_ms": 30000,
+        "gc_panic_threshold": 50000
+    },
+    "comms": {
+        "uart_bus": 0,
+        "baud_rate": 115200,
+        "tx_pin": 0,
+        "rx_pin": 1,
+        "max_retries": 5
+    },
+    "tuning": {
+        "reply_delay_ms": 0,
+        "debounce_ms": 10,
+        "stall_timeout_ms": 500,
+        "heartbeat_timeout_ms": 500
+    },
+    "actuators": [
+        {
+            "id": "SVIB",
+            "type": "VIBE_DRIVER",
+            "pin": 10,
+            "min_duty": 0.2,
+            "max_duty": 1.0,
+            "freq": 9400,
+            "ramp_ms": 500,
+            "failsafe_val": 0.0,
+            "verification": {
+                "strategy": "GYRO_NOISE",
+                "sensor_id": "MAIN",
+                "threshold": 5.0,
+                "settle_ms": 500,
+                "quiet_ms": 1000
+            }
+        },
+        { 
+            "id": "SOL_TDWN", 
+            "pin": 11, 
+            "type": "SOLENOID", 
+            "failsafe_val": 0.0,
+            "max_on_ms": 1000
+        },
+        {
+            "id": "TVIB",
+            "type": "VIBE_DRIVER",
+            "pin": 12,
+            "min_duty": 0.2,
+            "max_duty": 1.0,
+            "freq": 14400,
+            "ramp_ms": 500,
+            "failsafe_val": 0.0,
+            "verification": {
+                "strategy": "GYRO_NOISE",
+                "sensor_id": "AUX",
+                "threshold": 5.0,
+                "settle_ms": 500,
+                "quiet_ms": 1000
+            }
+        },
+        { 
+            "id": "SOL_TUP", 
+            "pin": 13, 
+            "type": "SOLENOID", 
+            "failsafe_val": 0.0,
+            "max_on_ms": 1000
+        }
+    ],
+    "sensors": {
+        "buses": [
+            {
+                "id": 0,
+                "sda": 4,
+                "scl": 5,
+                "prefix": "MAIN"
+            },
+            {
+                "id": 1,
+                "sda": 2,
+                "scl": 3,
+                "prefix": "AUX"
+            }
+        ],
+        "digital_inputs": [
+            {
+                "id": "ESTOP_BUTTON",
+                "pin": 26,
+                "invert": true,
+                "debounce_ms": 50
+            }
+        ]
+    },
+    "testing": {
+        "watchdog_enabled": true,
+        "share_actuator_events": false,
+        "log_traffic": false,
+        "debug_parser": false,
+        "health_print_interval_ms": 0,
+        "sensor_print_interval_ms": 0,
+        "actuator_print_interval_ms": 0,
+        "debug_stream_ms": 0
+    }
+}

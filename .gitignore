@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$pyclass
+*.egg-info/
+dist/
+build/
+.venv/
+logs/
+*.log
+*.tmp
+*.new
+*.bak
