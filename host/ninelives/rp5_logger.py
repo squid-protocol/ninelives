@@ -100,6 +100,9 @@ def setup_logger():
 
     listener = QueueListener(log_queue, *handlers_list, respect_handler_level=True)
     listener.start()
+    import atexit
+
+    atexit.register(listener.stop)
 
     return logging.getLogger("Core0")
 

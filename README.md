@@ -34,6 +34,8 @@ ninelives/
 │       ├── diagnostics.py
 │       └── logging.py
 └── examples/
+    ├── minimal_host.py            # ~60-line runnable Host Switchboard & Digital Twin example
+    ├── virtual_loopback_demo.py   # Zero-hardware virtual Limb, W-Protocol & Ghost OTA rescue demo
     ├── how_to_make_a_driver.md    # Guide to the Humble Component Pattern
     └── breakbeam_plugin/          # Example Core 1 metrology plugin (from Meow Turtle)
         └── breakbeam_monitor.py
@@ -58,15 +60,22 @@ ninelives/
 
 ## Quick Start
 
-### 1. Install Host Package (RP5 / Linux)
+### 1. Run the Hardware-Free Loopback & Ghost OTA Demo
+Verify the entire stack (Switchboard, Digital Twin, W-Protocol event ledger, Ghost Mode crash, and SHA-256 OTA rescue) on your laptop in 2 seconds with zero hardware or external packages:
 ```bash
-pip install -e .
+python3 examples/virtual_loopback_demo.py
 ```
 
-### 2. Flash a Limb (RP2040 / RP2350)
+### 2. Install Host Package (RP5 / Linux) & Run Minimal Host
+```bash
+pip install -e .
+python3 examples/minimal_host.py --port /dev/ttyAMA0 --limb-id 1
+```
+
+### 3. Flash a Limb (RP2040 / RP2350)
 Copy the contents of `limb_firmware/` to a MicroPython-flashed Pico, customize `config.json` from `config.example.json`, and connect it to your RS-485 bus.
 
-### 3. Fleet CLI Utilities
+### 4. Fleet CLI Utilities
 * **Mass OTA Flash over RS-485:**
   ```bash
   ninelives-flash -t A -f limb_firmware/app.py

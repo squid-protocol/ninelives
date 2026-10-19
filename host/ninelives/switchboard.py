@@ -132,13 +132,27 @@ class PicoController:
         """
         [Spec 4.1.1] Attempts to open the asynchronous serial connection.
 
-        Utilizes serial_asyncio to provide non-blocking IO. If the link fails
-        to open, the Digital Twin state for this limb is forced to OFFLINE.
+        Utilizes serial_asyncio to provide non-blocking IO (or a custom stream
+        factory for virtual loopbacks/tests). If the link fails to open, the
+        Digital Twin state for this limb is forced to OFFLINE.
         """
         try:
-            self.reader, self.writer = await serial_asyncio.open_serial_connection(
-                url=self.port, baudrate=self.baud
-            )
+            if callable(self.port):
+                res = self.port()
+                if asyncio.iscoroutine(res):
+                    self.reader, self.writer = await res
+                else:
+                    self.reader, self.writer = res
+            elif self.reader is not None and self.writer is not None:
+                pass
+            else:
+                if serial_asyncio is None:
+                    raise RuntimeError(
+                        "pyserial-asyncio is not installed (pip install pyserial-asyncio)"
+                    )
+                self.reader, self.writer = await serial_asyncio.open_serial_connection(
+                    url=self.port, baudrate=self.baud
+                )
             self.connected = True
             logger.info(f"[Pico {self.id}] Physical Link Established: {self.port}")
             return True
@@ -210,14 +224,11 @@ class PicoController:
 
                 # Assembly and Dispatch
                 packet = meowprotocol.build_packet(self.id, 0, seq, msg_type, w_payload)
-                self.writer.write(packet)
-                await self.writer.drain()
                 self.last_tx_time = time.time()
 
-                if DEBUG_PACKETS:
-                    logger.debug(f"[TX P{self.id}] MType={hex(msg_type)} Seq={seq}")
-
                 # [Spec 4.3.6.2] Accountability Registry Entry
+                # Register BEFORE writer.write() so ultra-fast or in-memory loopbacks
+                # that deliver the ACK during drain() find `seq` in `pending_acks`.
                 if requires_ack:
                     self.pending_acks[seq] = {
                         "ts": self.last_tx_time,
@@ -225,6 +236,13 @@ class PicoController:
                         "pkt": packet,
                         "type": msg_type,
                     }
+
+                self.writer.write(packet)
+                await self.writer.drain()
+                self.last_tx_time = time.time()
+
+                if DEBUG_PACKETS:
+                    logger.debug(f"[TX P{self.id}] MType={hex(msg_type)} Seq={seq}")
 
                 return seq
 
@@ -302,6 +320,29 @@ class PicoController:
         if self.model:
             self.model.touch()
 
+        # --- INTERNAL TRANSPORT ACKS ---
+        # Note: ACK packets echo the Host's outbound TX sequence ID in their header
+        # or payload, which is an independent sequence space from the Limb's own
+        # monotonic TX sequence counter (`last_rx_seq`). Handle ACKs before
+        # updating `last_rx_seq` so echoed Host sequence IDs don't cause false
+        # DATA GAP warnings or get dropped as duplicate Limb sequence numbers.
+        if mtype == meowprotocol.MSG_TYPE_ACK:
+            try:
+                if "|W=" in payload_str:
+                    ack_seq = int(payload_str.split("|W=")[0])
+                elif payload_str.isdigit():
+                    ack_seq = int(payload_str)
+                else:
+                    ack_seq = seq
+
+                if ack_seq in self.pending_acks:
+                    # [Spec 20.1] Capture exact RTT for Link Quality math
+                    self.coord.record_ack(self.id, ack_seq)
+                    del self.pending_acks[ack_seq]
+            except Exception:
+                pass
+            return
+
         # --- SEQUENCE VALIDATION & DEDUPLICATION ---
         is_duplicate = self.last_rx_seq != -1 and seq == self.last_rx_seq
 
@@ -333,23 +374,6 @@ class PicoController:
             logger.warning(
                 f"[Pico {self.id}] Logic Queue Full! Dropping telemetry event."
             )
-
-        # --- INTERNAL TRANSPORT ACKS ---
-        if mtype == meowprotocol.MSG_TYPE_ACK:
-            try:
-                # Support both simple sequence ACKs and piggybacked wipe ACKs
-                if "|W=" in payload_str:
-                    ack_seq = int(payload_str.split("|W=")[0])
-                else:
-                    ack_seq = int(payload_str) if payload_str.isdigit() else -1
-
-                if ack_seq in self.pending_acks:
-                    # [Spec 20.1] Capture exact RTT for Link Quality math
-                    self.coord.record_ack(self.id, ack_seq)
-                    del self.pending_acks[ack_seq]
-            except Exception:
-                pass
-            return
 
         # [Spec 4.3.6.1] Safety Preemption: Force a status refresh on Alarm
         if mtype == meowprotocol.MSG_TYPE_ALARM:
